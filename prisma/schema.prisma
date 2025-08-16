@@ -1,0 +1,47 @@
+generator client {
+  provider      = "prisma-client-js"
+  engineType    = "binary"
+  binaryTargets = ["native", "debian-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Category {
+  id        String        @id @default(cuid())
+  name      String        @unique
+  type      CatType       // INCOME or EXPENSE
+  color     String?       // hex for charts
+  txns      Transaction[]
+  budgets   Budget[]
+  createdAt DateTime      @default(now())
+}
+
+model Transaction {
+  id          String    @id @default(cuid())
+  date        DateTime
+  amountCents Int       // store money as integer
+  note        String?
+  categoryId  String?
+  category    Category? @relation(fields: [categoryId], references: [id])
+  createdAt   DateTime  @default(now())
+}
+
+model Budget {
+  id          String    @id @default(cuid())
+  month       Int       // 1-12
+  year        Int
+  categoryId  String
+  limitCents  Int
+  category    Category  @relation(fields: [categoryId], references: [id])
+  createdAt   DateTime  @default(now())
+
+  @@unique([month, year, categoryId])
+}
+
+enum CatType {
+  INCOME
+  EXPENSE
+}

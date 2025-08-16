@@ -1,103 +1,202 @@
-import Image from "next/image";
+import { prisma } from "@/lib/prisma";
+import { unstable_noStore as noStore } from "next/cache";
+import { createTransaction, deleteTransaction, createCategory, seedDemo } from "./actions/finance";
+import type { Prisma } from "@prisma/client";
+import Link from "next/link";
+import ClientCharts from "./ClientCharts";
 
-export default function Home() {
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+export const fetchCache = "force-no-store";
+
+function money(cents: number) {
+  const sign = cents < 0 ? "-" : "";
+  const v = Math.abs(cents) / 100;
+  return `${sign}$${v.toFixed(2)}`;
+}
+
+export default async function Home({
+  searchParams,
+}: {
+  searchParams: Promise<{ [k: string]: string | string[] | undefined }>;
+}) {
+  noStore();
+  const params = await searchParams;
+
+  const now = new Date();
+  const month = Number(params.month ?? now.getMonth() + 1);
+  const year = Number(params.year ?? now.getFullYear());
+  const from = new Date(year, month - 1, 1);
+  const to = new Date(year, month, 1);
+
+  const q = typeof params.q === "string" ? params.q : undefined;
+  const categoryId = typeof params.categoryId === "string" ? params.categoryId : undefined;
+
+  const where: Prisma.TransactionWhereInput = { date: { gte: from, lt: to } };
+  if (q && q.trim()) where.note = { contains: q };
+  if (categoryId) where.categoryId = categoryId;
+
+  const [txns, cats] = await Promise.all([
+    prisma.transaction.findMany({ where, include: { category: true }, orderBy: { date: "desc" } }),
+    prisma.category.findMany({ orderBy: { name: "asc" } }),
+  ]);
+
+  const daysInMonth = new Date(year, month, 0).getDate();
+  const daily = Array.from({ length: daysInMonth }, (_, i) => ({ day: i + 1, income: 0, expense: 0 }));
+  for (const t of txns) {
+    const d = new Date(t.date).getDate();
+    if (t.amountCents >= 0) daily[d - 1].income += t.amountCents / 100;
+    else daily[d - 1].expense += Math.abs(t.amountCents) / 100;
+  }
+
+  const byCat = cats
+    .map((c) => ({
+      name: c.name,
+      color: c.color ?? "#64748b",
+      income: txns.filter((t) => t.categoryId === c.id && t.amountCents > 0).reduce((s, t) => s + t.amountCents, 0) / 100,
+      expense: txns.filter((t) => t.categoryId === c.id && t.amountCents < 0).reduce((s, t) => s + Math.abs(t.amountCents), 0) / 100,
+    }))
+    .filter((x) => x.income > 0 || x.expense > 0);
+
+  const totalIncome  = txns.filter(t => t.amountCents > 0).reduce((s,t)=>s+t.amountCents,0)/100;
+  const totalExpense = txns.filter(t => t.amountCents < 0).reduce((s,t)=>s+Math.abs(t.amountCents),0)/100;
+  const net = totalIncome - totalExpense;
+
+  const qs = new URLSearchParams({ month: String(month), year: String(year) });
+  if (q) qs.set("q", q);
+  if (categoryId) qs.set("categoryId", categoryId);
+  const prev = new URLSearchParams(qs); prev.set("month", String(month === 1 ? 12 : month - 1)); prev.set("year", String(month === 1 ? year - 1 : year));
+  const next = new URLSearchParams(qs); next.set("month", String(month === 12 ? 1 : month + 1)); next.set("year", String(month === 12 ? year + 1 : year));
+
   return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
-
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+    <main className="mx-auto max-w-6xl p-6 lg:p-10 space-y-8">
+      {/* Header */}
+      <header className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">BudgetWise</h1>
+          <p className="text-sm text-slate-400 mt-1">Track income, tame expenses, see trends.</p>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+        <form action={seedDemo}>
+          <button className="rounded-md bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 text-sm border border-indigo-500">
+            Seed demo
+          </button>
+        </form>
+      </header>
+
+      {/* Stats */}
+      <section className="grid gap-4 sm:grid-cols-3">
+        <Stat label="Income"  value={`$${totalIncome.toFixed(2)}`} />
+        <Stat label="Expense" value={`$${totalExpense.toFixed(2)}`} />
+        <Stat label="Net"     value={`${net < 0 ? "-" : ""}$${Math.abs(net).toFixed(2)}`} />
+      </section>
+
+      {/* Month nav + filters */}
+      <section className="rounded-xl border border-slate-800 bg-slate-900 p-5 space-y-4">
+        <div className="flex items-center justify-between">
+          <Link href={`/?${prev.toString()}`} className="rounded-md border border-slate-700 bg-slate-900 px-3 py-1.5 text-sm hover:bg-slate-800">← Prev</Link>
+          <div className="text-sm text-slate-300 font-medium">
+            {new Date(year, month - 1).toLocaleString(undefined, { month: "long", year: "numeric" })}
+          </div>
+          <Link href={`/?${next.toString()}`} className="rounded-md border border-slate-700 bg-slate-900 px-3 py-1.5 text-sm hover:bg-slate-800">Next →</Link>
+        </div>
+
+        <form method="get" className="grid grid-cols-1 md:grid-cols-4 gap-3">
+          <input type="hidden" name="month" value={month} />
+          <input type="hidden" name="year" value={year} />
+          <select name="categoryId" defaultValue={categoryId ?? ""} className="rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm">
+            <option value="">All categories</option>
+            {cats.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+          <input name="q" defaultValue={q ?? ""} placeholder="Search notes…" className="md:col-span-2 rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm" />
+          <button className="rounded-md bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 text-sm border border-indigo-500">Apply</button>
+        </form>
+      </section>
+
+      {/* Charts */}
+      <ClientCharts daily={daily} byCat={byCat} />
+
+      {/* Forms */}
+      <section className="grid gap-6 md:grid-cols-2">
+        <div className="rounded-xl border border-slate-800 bg-slate-900 p-5">
+          <h2 className="mb-3 text-sm font-semibold text-slate-300">New transaction</h2>
+          <form action={createTransaction} className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <input type="date" name="date" className="rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm" />
+            <input type="number" step="0.01" name="amount" placeholder="Amount (− = expense, + = income)" className="rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm" />
+            <select name="categoryId" defaultValue="" className="rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm">
+              <option value="">No category</option>
+              {cats.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+            <input name="note" placeholder="Note" className="rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm" />
+            <div className="md:col-span-2 flex justify-end">
+              <button className="rounded-md bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 text-sm border border-indigo-500">Add</button>
+            </div>
+          </form>
+        </div>
+
+        <div className="rounded-xl border border-slate-800 bg-slate-900 p-5">
+          <h2 className="mb-3 text-sm font-semibold text-slate-300">New category</h2>
+          <form action={createCategory} className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <input name="name" placeholder="Name (e.g. Food)" className="rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm" />
+            <select name="type" defaultValue="EXPENSE" className="rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm">
+              <option value="EXPENSE">EXPENSE</option>
+              <option value="INCOME">INCOME</option>
+            </select>
+            <input name="color" type="color" defaultValue="#64748b" className="rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm h-10" />
+            <div className="md:col-span-3 flex justify-end">
+              <button className="rounded-md bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 text-sm border border-indigo-500">Add</button>
+            </div>
+          </form>
+        </div>
+      </section>
+
+      {/* Table */}
+      <section className="rounded-xl border border-slate-800 bg-slate-900 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-slate-800/70">
+              <tr>
+                <th className="px-4 py-3 text-left">Date</th>
+                <th className="px-4 py-3 text-left">Category</th>
+                <th className="px-4 py-3 text-left">Note</th>
+                <th className="px-4 py-3 text-right">Amount</th>
+                <th className="px-4 py-3 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {txns.map((t) => (
+                <tr key={t.id} className="border-t border-slate-800 hover:bg-slate-800/40">
+                  <td className="px-4 py-3">{new Date(t.date).toISOString().slice(0,10)}</td>
+                  <td className="px-4 py-3">{t.category?.name ?? "-"}</td>
+                  <td className="px-4 py-3">{t.note ?? "-"}</td>
+                  <td className={`px-4 py-3 text-right ${t.amountCents < 0 ? "text-rose-400" : "text-emerald-400"}`}>
+                    {money(t.amountCents)}
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    <form action={deleteTransaction} className="inline">
+                      <input type="hidden" name="id" value={t.id} />
+                      <button className="rounded-md bg-rose-600 hover:bg-rose-500 text-white px-3 py-1.5 text-sm border border-rose-600/80">
+                        Delete
+                      </button>
+                    </form>
+                  </td>
+                </tr>
+              ))}
+              {txns.length === 0 && (
+                <tr><td className="px-4 py-10 text-center text-slate-400" colSpan={5}>No transactions this month.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+  );
+}
+
+function Stat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl border border-slate-800 bg-slate-900 p-5">
+      <div className="text-xs text-slate-400">{label}</div>
+      <div className="text-2xl font-semibold mt-1">{value}</div>
     </div>
   );
 }

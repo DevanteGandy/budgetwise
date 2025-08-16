@@ -76,11 +76,6 @@ export default async function Home({
           <h1 className="text-2xl font-semibold tracking-tight">BudgetWise</h1>
           <p className="text-sm text-slate-400 mt-1">Track income, tame expenses, see trends.</p>
         </div>
-        <form action={seedDemo}>
-          <button className="rounded-md bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 text-sm border border-indigo-500">
-            Seed demo
-          </button>
-        </form>
       </header>
 
       {/* Stats */}

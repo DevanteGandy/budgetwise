@@ -1,36 +1,39 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 💰 BudgetWise
 
-## Getting Started
+A modern, responsive personal finance tracker built with **Next.js 14**, **Prisma**, and **PostgreSQL** — deployed on **Vercel**.
 
-First, run the development server:
+Track your income and expenses, visualize your spending habits, and manage categories with a clean, intuitive UI.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+---
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## ✨ Features
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- 📊 **Interactive Charts** – Daily income vs. expenses, expense breakdown by category.
+- 📝 **Transaction Management** – Add, edit, and delete income/expenses.
+- 🎯 **Categories** – Organize spending into customizable categories.
+- 🔍 **Filtering & Search** – Quickly find transactions by keyword or category.
+- ⚡ **Demo Seeding** – Instantly populate the app with sample data for testing.
+- ☁ **Full-stack** – Built with modern Next.js server actions and Prisma ORM.
+- 📱 **Responsive Design** – Works beautifully on mobile, tablet, and desktop.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+---
 
-## Learn More
+## 🖼 Screenshots
 
-To learn more about Next.js, take a look at the following resources:
+<img width="1173" height="747" alt="Dash" src="https://github.com/user-attachments/assets/d36b98bc-cf89-41c5-94c0-05ba242f62f5" />
+<img width="1164" height="864" alt="exp" src="https://github.com/user-attachments/assets/01725bf7-29f7-4e82-b251-61f40571a720" />
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+---
 
-## Deploy on Vercel
+## 🛠 Tech Stack
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+- **Frontend**: [Next.js 14 (App Router)](https://nextjs.org/)
+- **Backend**: Server Actions & API routes
+- **Database**: [PostgreSQL](https://www.postgresql.org/) (via [Neon.tech](https://neon.tech/) or similar)
+- **ORM**: [Prisma](https://www.prisma.io/)
+- **Charts**: [Recharts](https://recharts.org/)
+- **Styling**: [Tailwind CSS](https://tailwindcss.com/)
+- **Deployment**: [Vercel](https://vercel.com/)
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+---
